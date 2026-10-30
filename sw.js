@@ -5,8 +5,6 @@ self.addEventListener('push',event=>{
   try{if(event.data)data=event.data.json()}catch(e){data={body:event.data?event.data.text():''}}
   event.waitUntil(self.registration.showNotification(data.title||'iPhone Push Test',{
     body:data.body||'Настоящее push-уведомление получено!',
-    icon:'./icon.png',
-    badge:'./icon.png',
     tag:'iphone-push-test',
     data:{url:'./'}
   }));
