@@ -1,44 +1,54 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111827"><meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Push Test">
-<link rel="manifest" href="./manifest.webmanifest">
+<link rel="manifest" href="./manifest.webmanifest"><link rel="apple-touch-icon" href="./icon.png">
 <title>iPhone Push Test</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f8fafc;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:34px 16px}main{max-width:520px;margin:auto}h1{font-size:29px;margin-bottom:10px}p{color:#bec7d7;line-height:1.55}.panel{border:1px solid #334155;background:#172033;padding:19px;border-radius:18px;margin:18px 0}button{display:block;width:100%;background:#60a5fa;color:#07162c;border:0;border-radius:12px;font-size:16px;font-weight:700;padding:15px;margin:12px 0}button.secondary{background:#334155;color:white}button:disabled{opacity:.45}#status{white-space:pre-wrap;overflow-wrap:anywhere}code{overflow-wrap:anywhere;color:#93c5fd}small{color:#94a3b8}
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f8fafc;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:30px 16px}main{max-width:540px;margin:auto}h1{font-size:28px}p{color:#cbd5e1;line-height:1.55}.panel{border:1px solid #334155;background:#172033;padding:18px;border-radius:18px;margin:18px 0}button{width:100%;background:#60a5fa;color:#07162c;border:0;border-radius:12px;font-size:16px;font-weight:700;padding:14px;margin:9px 0}button.secondary{background:#334155;color:white}button:disabled{opacity:.45}#status{white-space:pre-wrap;overflow-wrap:anywhere}small{color:#94a3b8}strong{font-size:17px}
 </style>
 </head>
-<body><main><h1>🔔 iPhone Push Test</h1><p>Проверка настоящих Web Push, в том числе при закрытом приложении и заблокированном экране.</p>
-<div class="panel"><strong>1. Статус</strong><p id="status">Загрузка…</p></div>
-<div class="panel"><strong>2. Подписка</strong><p>На iPhone откройте сайт в Safari → «Поделиться» → «На экран Домой». Запустите приложение с иконки и разрешите push.</p>
-<button id="enable">Разрешить уведомления</button><button class="secondary" id="refresh">Обновить статус</button></div>
-<div class="panel"><strong>3. Отправка</strong><p>После подключения отправьте тестовый push из панели OneSignal → Messages. Для отправки через Google Apps Script есть отдельный пример в репозитории.</p><small>GitHub Pages размещает приложение, OneSignal доставляет уведомления. API-ключ нельзя публиковать в коде сайта.</small></div>
+<body><main><h1>🔔 iPhone Push Test</h1><p>Прямой Web Push без OneSignal и Firebase.</p>
+<section class="panel"><strong>Статус</strong><p id="status">Проверка…</p><button class="secondary" id="refresh">Обновить статус</button></section>
+<section class="panel"><strong>1. Подписка iPhone</strong><p>Откройте сайт через Safari → «Поделиться» → «На экран Домой», затем запустите с иконки.</p><button id="subscribe">Разрешить и подписаться</button></section>
+<section class="panel"><strong>2. Отправка тестового push</strong><p>Нажмите «Скопировать подписку». Вставьте результат в GitHub → Settings → Secrets and variables → Actions как секрет <b>PUSH_SUBSCRIPTION</b>. После этого запустите GitHub Actions → Send test push.</p><button class="secondary" id="copy">Скопировать подписку</button><small>Подписка содержит приватный адрес доставки. Не публикуйте её в открытом репозитории или переписке.</small></section>
 </main>
-<script src="./config.js"></script>
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
-const statusEl=document.getElementById('status'), enableBtn=document.getElementById('enable');
-let os=null;
+const vapidPublicKey="BBzUNfgnhNDi_EPPcjSmfIFes1aPc9c6pmGfdDvFKknBtObYpHX6JqXHVxabXy4XVjPiTllsNTK32xD1waHcs9c";
+const statusEl=document.getElementById('status');
 const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
-const print=x=>statusEl.textContent=x;
-async function showStatus(){
- if(!os){print('Сервис уведомлений инициализируется…');return}
- const p=Notification.permission,sub=os.User.PushSubscription;
- print('Режим приложения: '+(standalone()?'да':'нет')+'\nРазрешение: '+p+'\nПодписка: '+(sub.optedIn?'активна':'не активна')+'\nSubscription ID: '+(sub.id||'ещё нет'));
+const keyBytes=s=>Uint8Array.from(atob((s+'='.repeat((4-s.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+async function getReg(){return navigator.serviceWorker.register('./sw.js',{scope:'./'})}
+async function getSub(){const reg=await navigator.serviceWorker.ready;return reg.pushManager.getSubscription()}
+async function status(){
+ try{
+  const supported='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+  if(!supported){statusEl.textContent='Web Push не поддерживается этим браузером';return}
+  await getReg();const sub=await getSub();
+  statusEl.textContent='Установлено на экран Домой: '+(standalone()?'да':'нет')+'\nРазрешение: '+Notification.permission+'\nПодписка: '+(sub?'активна':'нет')+'\n'+(sub?'Можете копировать подписку.':'Нажмите кнопку подписки.');
+ }catch(e){statusEl.textContent='Ошибка: '+e.message}
 }
-async function start(){
- if(!window.PUSH_TEST_APP_ID||window.PUSH_TEST_APP_ID==='PASTE_ONESIGNAL_APP_ID_HERE'){print('Сначала укажите публичный App ID OneSignal в config.js');enableBtn.disabled=true;return}
- if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!standalone()){print('Добавьте сайт на экран «Домой» и откройте с иконки, иначе iPhone не разрешит Web Push.');enableBtn.disabled=true;return}
- if(!('serviceWorker' in navigator)||!('PushManager' in window)){print('Web Push недоступен в этом браузере/режиме.');enableBtn.disabled=true;return}
- window.OneSignalDeferred=window.OneSignalDeferred||[];
- window.OneSignalDeferred.push(async function(OneSignal){
-  try{await OneSignal.init({appId:window.PUSH_TEST_APP_ID,serviceWorkerPath:'OneSignalSDKWorker.js',serviceWorkerParam:{scope:'./'}});os=OneSignal;await showStatus()}
-  catch(e){print('Ошибка OneSignal: '+e.message)}
- });
-}
-enableBtn.onclick=async()=>{if(!os)return;try{await os.Notifications.requestPermission();if(Notification.permission==='granted')await os.User.PushSubscription.optIn();await showStatus()}catch(e){print('Ошибка: '+e.message)}};
-document.getElementById('refresh').onclick=showStatus;
-window.addEventListener('load',start);
+document.getElementById('subscribe').onclick=async()=>{
+ try{
+  if(/iPhone|iPad|iPod/.test(navigator.userAgent)&&!standalone())throw Error('Сначала добавьте PWA на экран «Домой» и откройте с иконки.');
+  const reg=await getReg();let permission=Notification.permission;
+  if(permission==='default')permission=await Notification.requestPermission();
+  if(permission!=='granted')throw Error('Уведомления не разрешены: '+permission);
+  let sub=await reg.pushManager.getSubscription();
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(vapidPublicKey)});
+  await status();
+ }catch(e){statusEl.textContent='Ошибка подписки: '+e.message}
+};
+document.getElementById('copy').onclick=async()=>{
+ try{
+  const sub=await getSub();if(!sub)throw Error('Сначала разрешите уведомления.');
+  const value=JSON.stringify(sub.toJSON());
+  if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(value);alert('Подписка скопирована. Сохраните её в секрете PUSH_SUBSCRIPTION на GitHub.')}
+  else{prompt('Скопируйте подписку:',value)}
+ }catch(e){alert(e.message)}
+};
+document.getElementById('refresh').onclick=status;
+status();
 </script></body></html>
